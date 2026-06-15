@@ -4,19 +4,24 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.liaozhou.claude-quota-logger</string>
+  <string>com.claude-quota-logger</string>
+
+  <!-- Replace YOUR_USERNAME with your macOS user name (or change the path to
+       wherever you cloned this project). launchd needs absolute paths and does
+       NOT expand ~ or $HOME, so the full path must be spelled out here. -->
 
   <!-- Every poll: append a raw sample, then regenerate the HTML report. -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>/usr/bin/python3 /Users/liaozhou/AI_workspace/claude_usage/claude_quota_logger.py &amp;&amp; /usr/bin/python3 /Users/liaozhou/AI_workspace/claude_usage/render_report.py</string>
+    <string>/usr/bin/python3 /Users/YOUR_USERNAME/AI_workspace/claude_usage/claude_quota_logger.py &amp;&amp; /usr/bin/python3 /Users/YOUR_USERNAME/AI_workspace/claude_usage/render_report.py</string>
   </array>
 
   <!-- launchd starts with a clean environment and does NOT inherit the shell's
-       proxy vars, so set them here explicitly to route the request through the
-       local proxy (matches HTTPS_PROXY in the interactive shell). -->
+       proxy vars, so set them here explicitly to route the request through a
+       local proxy. If you can reach the API directly, delete this whole block;
+       if you use a different proxy, change the port. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>HTTP_PROXY</key>
@@ -32,13 +37,13 @@
   <key>StartInterval</key>
   <integer>600</integer>
 
-  <!-- Run once right after loading so you don't wait 5 min for the first sample. -->
+  <!-- Run once right after loading so you don't wait 10 min for the first sample. -->
   <key>RunAtLoad</key>
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/liaozhou/AI_workspace/claude_usage/data/launchd.log</string>
+  <string>/Users/YOUR_USERNAME/AI_workspace/claude_usage/data/launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/liaozhou/AI_workspace/claude_usage/data/launchd.log</string>
+  <string>/Users/YOUR_USERNAME/AI_workspace/claude_usage/data/launchd.log</string>
 </dict>
 </plist>
