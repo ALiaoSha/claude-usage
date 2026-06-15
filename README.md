@@ -1,101 +1,105 @@
 # Claude Quota Logger
 
-记录 Claude 订阅 **每个 5 小时窗口在 reset 之前用掉了多少配额**(真正的服务端"利用率百分比"历史),并生成离线 HTML 报告。顺带也记录 7 天周配额。
+*English · [中文](README_ZH.md)*
 
-## 目的
+Records **how much of each rolling 5-hour quota window you had used right before it reset** (the real server-side "utilization %" history) and renders an offline HTML report. The 7-day weekly quota is tracked too.
 
-Claude 订阅的限流是滚动的 5 小时窗口,窗口一旦 reset,服务端就不再告诉你"上个窗口最终用了多少"。本项目通过定时轮询 Anthropic 内部的用量接口,把每个窗口在 reset 前的利用率**沉淀成历史**,这样你能回看:
+## Why
 
-- 每个 5h 窗口收尾时用到了百分之几(`final`)
-- 窗口期内的峰值(`peak`)
-- 哪些窗口逼近或打满了配额(≥95%)
-- 7 天周配额的走势
+Claude subscription rate limits run on rolling 5-hour windows. Once a window resets, the server no longer tells you how much of the *previous* window you ended up using. This project periodically polls Anthropic's internal usage endpoint and **persists each window's utilization** so you can look back at:
 
-数据源是未公开接口 `GET https://api.anthropic.com/api/oauth/usage`,可能随时变化或失效。
+- the final utilization at the end of each 5h window (`final`)
+- the peak utilization reached during the window (`peak`)
+- which windows came close to or hit the cap (≥95%)
+- the trend of the 7-day weekly quota
 
-## 工作原理
+The data source is the undocumented endpoint `GET https://api.anthropic.com/api/oauth/usage`, which may change or break at any time.
+
+## How it works
 
 ```
-              每 10 分钟(launchd)
-   usage API ──────────────────▶ claude_quota_logger.py ──▶ data/samples.csv  (原始样本, 唯一真相)
+              every 10 min (launchd)
+   usage API ──────────────────▶ claude_quota_logger.py ──▶ data/samples.csv  (raw samples, source of truth)
                                                                   │
                                                                   ▼
-                                          render_report.py ──▶ data/report.html (按窗口派生 + 可视化)
+                                          render_report.py ──▶ data/report.html (windows derived + visualized)
 ```
 
-- **logger 只追加原始样本**:每次轮询往 `data/samples.csv` 写一行 `(时间, 5h reset, 5h 利用率, 7d reset, 7d 利用率, opus, sonnet)`。
-- **窗口由样本派生**:`render_report.py` 按 `resets_at` 分组,`final` = 窗口内最后一条样本,`peak` = 最大值。
-- 这种"先存原始样本、再派生"的设计很稳:即使轮询恰好错过 reset 那一刻(笔记本休眠、漏跑),也能从已有样本恢复出该窗口的 final/peak,**不依赖抓到翻转瞬间**。
+- **The logger only appends raw samples**: each poll writes one row to `data/samples.csv` — `(timestamp, 5h reset, 5h utilization, 7d reset, 7d utilization, opus, sonnet)`.
+- **Windows are derived from samples**: `render_report.py` groups by `resets_at`; `final` = the last sample in the window, `peak` = the maximum.
+- This "store raw samples first, derive later" design is robust: even if a poll happens to miss the exact reset moment (laptop asleep, a skipped run), the window's final/peak can still be reconstructed from the samples already taken — it **does not depend on catching the rollover instant**.
 
-## 目录结构
+## Layout
 
-所有东西都在本项目目录里,数据放在 `data/` 子目录:
+Everything lives in the project directory; runtime data goes under `data/`:
 
 ```
 claude_usage/
-├── claude_quota_logger.py                 # 采样:轮询接口,追加到 data/samples.csv
-├── render_report.py                       # 渲染:读样本,派生窗口,生成 data/report.html
-├── com.claude-quota-logger.plist # macOS LaunchAgent,每 10 分钟自动跑上面两步
-├── report_sample.html                     # 报告样例(参考用)
-├── README.md
-└── data/                                  # 运行时数据(自动生成)
-    ├── samples.csv                         # 原始样本,唯一真相,删了历史就没了
-    ├── report.html                         # 生成的离线报告,双击即可打开
-    └── launchd.log                         # LaunchAgent 运行日志
+├── claude_quota_logger.py                 # sampler: polls the endpoint, appends to data/samples.csv
+├── render_report.py                       # renderer: reads samples, derives windows, writes data/report.html
+├── com.claude-quota-logger.plist          # macOS LaunchAgent: runs both steps every 10 minutes
+├── report_sample.html                     # sample report (for reference)
+├── README.md / README_ZH.md               # English / Chinese docs
+├── LICENSE
+└── data/                                  # runtime data (auto-generated)
+    ├── samples.csv                         # raw samples, the source of truth — delete it and history is gone
+    ├── report.html                         # generated offline report, just double-click to open
+    └── launchd.log                         # LaunchAgent run log
 ```
 
-> ⚠️ **路径不能放在 `~/Documents`、`~/Desktop`、`~/Downloads` 下**。macOS 的隐私保护(TCC)会禁止 launchd 等后台进程读取这些目录,定时任务会以 `Operation not permitted` 失败。本项目放在 `~/AI_workspace/claude_usage`(非保护路径)即可。
+> ⚠️ **Do not place the project under `~/Documents`, `~/Desktop`, or `~/Downloads`.** macOS privacy protection (TCC) blocks background processes like launchd from reading those directories, and the scheduled job will fail with `Operation not permitted`. Putting it under `~/AI_workspace/claude_usage` (a non-protected path) works fine.
 
-## 安装
+## Install
 
-前提:本机已登录 Claude Code(凭证会存在 macOS Keychain 的 `Claude Code-credentials` 项,logger 会自动从那里读取 OAuth token;也支持环境变量 `CLAUDE_CODE_OAUTH_TOKEN` 或 `~/.claude/.credentials.json`)。
+Prerequisite: you are signed in to Claude Code on this machine (credentials are stored in the macOS Keychain item `Claude Code-credentials`, and the logger reads the OAuth token from there automatically; the env var `CLAUDE_CODE_OAUTH_TOKEN` and `~/.claude/.credentials.json` are also supported).
 
 ```sh
 cd ~/AI_workspace/claude_usage
-# 先把 plist 里的 YOUR_USERNAME 替换成你的 macOS 用户名(launchd 不展开 ~/$HOME,必须用绝对路径)
+# Replace YOUR_USERNAME in the plist with your macOS user name
+# (launchd does not expand ~ or $HOME, so absolute paths are required)
 sed -i '' "s/YOUR_USERNAME/$(whoami)/g" com.claude-quota-logger.plist
 cp com.claude-quota-logger.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.claude-quota-logger.plist
 ```
 
-加载后会立刻跑一次。LaunchAgent 开机自启,休眠唤醒后会补跑漏掉的轮询,所以 reset 时刻能被覆盖到。
+It runs once immediately after loading. The LaunchAgent starts at login and re-fires any polls missed during sleep on wake, so reset moments stay well covered.
 
-> plist 里的路径写成了 `/Users/YOUR_USERNAME/AI_workspace/claude_usage`(三处:两条 ProgramArguments + 两条日志路径)。如果你把项目放在别的位置,直接改这几处绝对路径,再重新 `cp` + `launchctl load`。
+> The paths in the plist are written as `/Users/YOUR_USERNAME/AI_workspace/claude_usage` (four places: two in ProgramArguments, two log paths). If you put the project somewhere else, just edit those absolute paths, then re-`cp` + `launchctl load`.
 >
-> plist 里的 `EnvironmentVariables`(`HTTP_PROXY`/`HTTPS_PROXY`)是为了让 launchd 后台进程走本地代理访问接口——launchd 不继承你 shell 的代理变量。如果你直连即可访问,删掉这一段;如果用别的代理端口,改成你自己的。
+> The `EnvironmentVariables` (`HTTP_PROXY`/`HTTPS_PROXY`) block routes the launchd background process through a local proxy — launchd does not inherit your shell's proxy variables. If you can reach the API directly, delete that block; if you use a different proxy port, change it to yours.
 
-## 使用
+## Usage
 
-- **看报告**:打开 `data/report.html`(离线自包含,双击即可)。
-  > 刚装好时"已完成窗口"是 0,属正常——等当前这个 5h 窗口 reset 之后,第一条历史才会出现。
-- **手动跑一次**:
+- **View the report**: open `data/report.html` (self-contained and offline, just double-click).
+  > Right after install the "completed windows" count is 0 — that's expected. The first history entry appears once the current 5h window resets.
+- **Run once manually**:
   ```sh
-  python3 claude_quota_logger.py      # 采一个样本
-  python3 render_report.py --open     # 重新生成报告并打开
+  python3 claude_quota_logger.py      # take one sample
+  python3 render_report.py --open     # regenerate the report and open it
   ```
-- **持续前台轮询**(不依赖 launchd):
+- **Continuous foreground polling** (without launchd):
   ```sh
   python3 claude_quota_logger.py --loop
   ```
 
-## 配置
+## Configuration
 
-- **轮询间隔**:`claude_quota_logger.py` 顶部的 `POLL_SECONDS`(默认 300 秒)。调小可让"reset 前最后读数"更贴近真实 reset 时刻。
-- 注意:LaunchAgent 的触发间隔由 plist 里的 `StartInterval`(默认 600,即 10 分钟)控制,与 `POLL_SECONDS` 是两回事——单次运行模式下 logger 只采一个样本,真正的定时靠 launchd。改了间隔后重载 LaunchAgent 即可:
+- **Poll interval**: `POLL_SECONDS` at the top of `claude_quota_logger.py` (default 300s). Lowering it makes the "last reading before reset" closer to the actual reset moment.
+- Note: the LaunchAgent's trigger interval is controlled by `StartInterval` in the plist (default 600, i.e. 10 minutes), which is *separate* from `POLL_SECONDS` — in single-run mode the logger takes just one sample, and the real scheduling is done by launchd. After changing the interval, reload the LaunchAgent:
   ```sh
   launchctl unload ~/Library/LaunchAgents/com.claude-quota-logger.plist
   launchctl load   ~/Library/LaunchAgents/com.claude-quota-logger.plist
   ```
 
-## 卸载
+## Uninstall
 
 ```sh
 launchctl unload ~/Library/LaunchAgents/com.claude-quota-logger.plist
 rm ~/Library/LaunchAgents/com.claude-quota-logger.plist
-# 数据(data/)要不要留自己决定
+# whether to keep the data (data/) is up to you
 ```
 
-## 维护提示
+## Maintenance notes
 
-- `data/samples.csv` 每天约新增 288 行(5 分钟一条),一年约 10 万行,体积很小,一般无需清理。日后想精简可按月归档。
-- 接口为未公开 API,若某天返回结构变化或鉴权失败,先在 Claude Code 里跑任意命令刷新登录,再看 `data/launchd.log` 排查。
+- `data/samples.csv` grows by about 144 rows/day (one every 10 minutes), roughly 50k rows/year — tiny, so cleanup is usually unnecessary. Archive by month if you ever want to trim it.
+- The endpoint is an undocumented API. If one day the response structure changes or auth fails, run any Claude Code command first to refresh the login, then check `data/launchd.log` to troubleshoot.
