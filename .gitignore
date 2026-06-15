@@ -1,0 +1,9 @@
+# 个人运行时数据 —— 不发布（每个人本机自行生成）
+data/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

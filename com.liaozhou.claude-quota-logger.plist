@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.liaozhou.claude-quota-logger</string>
+
+  <!-- Every poll: append a raw sample, then regenerate the HTML report. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>/usr/bin/python3 /Users/liaozhou/AI_workspace/claude_usage/claude_quota_logger.py &amp;&amp; /usr/bin/python3 /Users/liaozhou/AI_workspace/claude_usage/render_report.py</string>
+  </array>
+
+  <!-- launchd starts with a clean environment and does NOT inherit the shell's
+       proxy vars, so set them here explicitly to route the request through the
+       local proxy (matches HTTPS_PROXY in the interactive shell). -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HTTP_PROXY</key>
+    <string>http://127.0.0.1:10808</string>
+    <key>HTTPS_PROXY</key>
+    <string>http://127.0.0.1:10808</string>
+    <key>NO_PROXY</key>
+    <string>localhost,127.0.0.1,::1</string>
+  </dict>
+
+  <!-- Poll every 10 minutes. launchd also fires once on wake if a fire was
+       missed while the Mac was asleep, so reset moments are well covered. -->
+  <key>StartInterval</key>
+  <integer>600</integer>
+
+  <!-- Run once right after loading so you don't wait 5 min for the first sample. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/liaozhou/AI_workspace/claude_usage/data/launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/liaozhou/AI_workspace/claude_usage/data/launchd.log</string>
+</dict>
+</plist>
