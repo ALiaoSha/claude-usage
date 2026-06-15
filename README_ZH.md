@@ -4,6 +4,8 @@
 
 记录 Claude 订阅 **每个 5 小时窗口在 reset 之前用掉了多少配额**(真正的服务端"利用率百分比"历史),并生成离线 HTML 报告。顺带也记录 7 天周配额。
 
+![报告截图](assets/report-screenshot.png)
+
 ## 目的
 
 Claude 订阅的限流是滚动的 5 小时窗口,窗口一旦 reset,服务端就不再告诉你"上个窗口最终用了多少"。本项目通过定时轮询 Anthropic 内部的用量接口,把每个窗口在 reset 前的利用率**沉淀成历史**,这样你能回看:
@@ -39,6 +41,7 @@ claude_usage/
 ├── render_report.py                       # 渲染:读样本,派生窗口,生成 data/report.html
 ├── com.claude-quota-logger.plist          # macOS LaunchAgent,每 10 分钟自动跑上面两步
 ├── report_sample.html                     # 报告样例(参考用)
+├── assets/                                # README 里展示的截图
 ├── README.md / README_ZH.md               # 英文 / 中文说明
 ├── LICENSE
 └── data/                                  # 运行时数据(自动生成)

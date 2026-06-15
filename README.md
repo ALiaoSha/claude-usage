@@ -4,6 +4,8 @@
 
 Records **how much of each rolling 5-hour quota window you had used right before it reset** (the real server-side "utilization %" history) and renders an offline HTML report. The 7-day weekly quota is tracked too.
 
+![Report screenshot](assets/report-screenshot.png)
+
 ## Why
 
 Claude subscription rate limits run on rolling 5-hour windows. Once a window resets, the server no longer tells you how much of the *previous* window you ended up using. This project periodically polls Anthropic's internal usage endpoint and **persists each window's utilization** so you can look back at:
@@ -39,6 +41,7 @@ claude_usage/
 ├── render_report.py                       # renderer: reads samples, derives windows, writes data/report.html
 ├── com.claude-quota-logger.plist          # macOS LaunchAgent: runs both steps every 10 minutes
 ├── report_sample.html                     # sample report (for reference)
+├── assets/                                # screenshot shown in this README
 ├── README.md / README_ZH.md               # English / Chinese docs
 ├── LICENSE
 └── data/                                  # runtime data (auto-generated)
